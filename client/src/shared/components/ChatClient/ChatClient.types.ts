@@ -1,4 +1,4 @@
-interface Chat {
+export interface Chat {
   name: string;
   isOnline: boolean;
 }

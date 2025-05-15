@@ -1,27 +1,35 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Box,
+  type FormEventHandler,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
   Button,
-  Chip,
   Divider,
   Grid,
   Paper,
   Stack,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
-import CircleIcon from "@mui/icons-material/Circle";
-import type { ChatMessage, ChatMap, WSMessage } from "./ChatClient.types.ts";
+import type {
+  ChatMessage,
+  ChatMap,
+  WSMessage,
+  Chat,
+} from "./ChatClient.types.ts";
 import ChatMessageCard from "./components/ChatMessageCard/ChatMessageCard.tsx";
 import { useSnackbar } from "notistack";
+import ChatButton from "./components/ChatButton/ChatButton.tsx";
 
 export default function ChatClient() {
   const [socket, setSocket] = useState<WebSocket | null>(null);
 
-  const [sender, setSender] = useState("");
+  const [currentUserName, setCurrentUserName] = useState("");
   const [chatsMap, setChatsMap] = useState<ChatMap>({});
-  const [selectedChat, setSelectedChat] = useState("");
+  const [selectedChatName, setSelectedChatName] = useState("");
   const [message, setMessage] = useState("");
   const [connected, setConnected] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -32,7 +40,7 @@ export default function ChatClient() {
 
   const chats = useMemo(() => {
     return Object.values(chatsMap).filter(
-      (receiver) => receiver.name && receiver.name !== sender,
+      (chat) => chat.name && chat.name !== currentUserName,
     );
   }, [chatsMap]);
 
@@ -40,26 +48,26 @@ export default function ChatClient() {
     return [...chatMessages]
       .filter(
         (msg) =>
-          msg.sender === selectedChat ||
-          (msg.sender === sender && msg.receiver === selectedChat),
+          msg.sender === selectedChatName ||
+          (msg.sender === currentUserName && msg.receiver === selectedChatName),
       )
       .reverse();
-  }, [selectedChat, chatMessages]);
+  }, [selectedChatName, chatMessages]);
 
   const showMessageNotification = (message: ChatMessage) => {
-      enqueueSnackbar({
-        content: (key: string | number) => (
-          <Paper sx={{ width: "600px" }} elevation={4} key={key}>
-            <ChatMessageCard
-              message={message}
-              onClick={() => {
-                setSelectedChat(message.sender);
-                closeSnackbar(key);
-              }}
-            />
-          </Paper>
-        ),
-      });
+    enqueueSnackbar({
+      content: (key: string | number) => (
+        <Paper sx={{ width: "600px" }} elevation={4} key={key}>
+          <ChatMessageCard
+            message={message}
+            onClick={() => {
+              setSelectedChatName(message.sender);
+              closeSnackbar(key);
+            }}
+          />
+        </Paper>
+      ),
+    });
   };
 
   const showInfoNotification = (info: string) => {
@@ -69,13 +77,17 @@ export default function ChatClient() {
           <Typography>{info}</Typography>
         </Paper>
       ),
-      autoHideDuration: 2000
+      autoHideDuration: 2000,
     });
   };
 
   useEffect(() => {
-    incomingMessageAudio.current = new Audio("src/assets/sounds/incomingMessage.wav");
-    currentChatIncomingMessageAudio.current = new Audio("src/assets/sounds/currentChatIncomingMessage.mp3");
+    incomingMessageAudio.current = new Audio(
+      "src/assets/sounds/incomingMessage.wav",
+    );
+    currentChatIncomingMessageAudio.current = new Audio(
+      "src/assets/sounds/currentChatIncomingMessage.mp3",
+    );
   }, []);
 
   useEffect(() => {
@@ -111,9 +123,9 @@ export default function ChatClient() {
                 id: Date.now(),
                 text: messageJson.message,
                 sender: messageJson.sender,
-                receiver: sender,
+                receiver: currentUserName,
               };
-              if (selectedChat === newMessage.sender) {
+              if (selectedChatName === newMessage.sender) {
                 currentChatIncomingMessageAudio.current?.play();
               } else {
                 incomingMessageAudio.current?.play();
@@ -169,101 +181,88 @@ export default function ChatClient() {
         socket.onerror = () => {};
       }
     };
-  }, [socket, selectedChat]);
+  }, [socket, selectedChatName]);
 
-  const handleConnect = () => {
-    socket?.send(JSON.stringify({ type: "init", sender }));
+  const handleConnect: FormEventHandler<HTMLFormElement> = (event) => {
+    event.preventDefault();
+    socket?.send(JSON.stringify({ type: "init", sender: currentUserName }));
   };
 
-  const handleSend = () => {
+  const handleChatSelect = (chat: Chat) => {
+    setSelectedChatName(chat.name);
+  };
+
+  const handleSend: FormEventHandler<HTMLFormElement> = (event) => {
+    event.preventDefault();
     socket?.send(
       JSON.stringify({
         type: "message",
-        sender,
-        receiver: selectedChat,
+        sender: currentUserName,
+        receiver: selectedChatName,
         message,
       }),
     );
   };
 
   return (
-    <>
-      <Box
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        minHeight="100vh"
-        bgcolor="#f5f5f5"
-        p={2}
-      >
-        <Paper elevation={3} sx={{ p: 4, maxWidth: 600, width: "100%" }}>
-          <Stack spacing={2} mb={3}>
-            <Typography variant="h5" gutterBottom align="center">
-              Тестирование WebSocket
-            </Typography>
-            <Divider />
-            {!connected && (
-              <>
-                <TextField
-                  label="Ваше имя"
-                  value={sender}
-                  onChange={(e) => setSender(e.target.value)}
-                  fullWidth
-                />
-                <Button
-                  variant="contained"
-                  onClick={handleConnect}
-                  disabled={!sender}
-                >
-                  Войти в чат
-                </Button>
-              </>
-            )}
+    <Paper elevation={3} sx={{ p: 4, maxWidth: 600, width: "100%" }}>
+      <Stack spacing={2} mb={3}>
+        <Typography variant="h5" gutterBottom align="center">
+          Тестирование WebSocket
+        </Typography>
+        <Divider />
+        {!connected && (
+          <form onSubmit={handleConnect}>
+            <Stack gap={2}>
+              <TextField
+                label="Ваше имя"
+                value={currentUserName}
+                onChange={(e) => setCurrentUserName(e.target.value)}
+                fullWidth
+              />
+              <Button
+                component="button"
+                type="submit"
+                variant="contained"
+                disabled={!currentUserName}
+              >
+                Войти в чат
+              </Button>
+            </Stack>
+          </form>
+        )}
 
-            {connected && (
+        {connected && (
+          <>
+            <Typography>
+              Вы вошли как{" "}
+              <Typography component="span" fontWeight="bold">
+                {currentUserName}
+              </Typography>
+            </Typography>
+            {Boolean(chats.length) ? (
+              <Stack gap={2}>
+                <Typography>Выберите получателя:</Typography>
+                <Grid container spacing={1}>
+                  {chats.map((chat) => (
+                    <ChatButton
+                      key={chat.name}
+                      chat={chat}
+                      isSelected={selectedChatName === chat.name}
+                      onSelect={handleChatSelect}
+                    />
+                  ))}
+                </Grid>
+              </Stack>
+            ) : (
+              <Typography>
+                Ожидание присоединения пользователей к чату...
+              </Typography>
+            )}
+            {selectedChatName && (
               <>
-                <Typography>
-                  Вы вошли как{" "}
-                  <span style={{ fontWeight: "bold" }}>{sender}</span>{" "}
-                </Typography>
-                {Boolean(chats.length) ? (
+                <form onSubmit={handleSend}>
                   <Stack gap={2}>
-                    <Typography>Выберите получателя:</Typography>
-                    <Grid container spacing={2}>
-                      {chats.map((chat) => (
-                        <Tooltip
-                          key={chat.name}
-                          title={
-                            chat.isOnline
-                              ? "Пользователь в сети"
-                              : "Пользователь не в сети"
-                          }
-                          arrow
-                        >
-                          <Chip
-                            key={chat.name}
-                            icon={
-                              chat.isOnline ? (
-                                <CircleIcon fontSize="small" />
-                              ) : undefined
-                            }
-                            label={chat.name}
-                            color={
-                              selectedChat === chat.name ? "primary" : undefined
-                            }
-                            onClick={() => setSelectedChat(chat.name)}
-                          />
-                        </Tooltip>
-                      ))}
-                    </Grid>
-                  </Stack>
-                ) : (
-                  <Typography>
-                    Ожидание присоединения пользователей к чату...
-                  </Typography>
-                )}
-                {selectedChat && (
-                  <>
                     <TextField
                       label="Сообщение"
                       value={message}
@@ -271,34 +270,39 @@ export default function ChatClient() {
                       fullWidth
                     />
                     <Button
+                      component="button"
+                      type="submit"
                       variant="contained"
                       color="primary"
-                      onClick={handleSend}
-                      disabled={!selectedChat || !message}
+                      disabled={!message}
                     >
                       Отправить сообщение
                     </Button>
-                    {Boolean(selectedChatMessages.length) && (
-                      <>
-                        <Typography variant="h6" gutterBottom>
-                          Сообщения
-                        </Typography>
-                        <Stack spacing={2} maxHeight={300} overflow="auto">
-                          {selectedChatMessages.map((message) => (
-                            <Grid key={message.id} flexShrink={0} pr={1}>
-                              <ChatMessageCard message={message} />
-                            </Grid>
-                          ))}
-                        </Stack>
-                      </>
-                    )}
-                  </>
-                )}
+                  </Stack>
+                </form>
+                <Paper sx={{ p: 2 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Сообщения
+                  </Typography>
+                  {Boolean(selectedChatMessages.length) ? (
+                    <Stack spacing={1} maxHeight={300} overflow="auto">
+                      {selectedChatMessages.map((message) => (
+                        <Grid key={message.id} flexShrink={0} pr={1}>
+                          <ChatMessageCard message={message} />
+                        </Grid>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography>
+                      Начните общаться с {selectedChatName}
+                    </Typography>
+                  )}
+                </Paper>
               </>
             )}
-          </Stack>
-        </Paper>
-      </Box>
-    </>
+          </>
+        )}
+      </Stack>
+    </Paper>
   );
 }
