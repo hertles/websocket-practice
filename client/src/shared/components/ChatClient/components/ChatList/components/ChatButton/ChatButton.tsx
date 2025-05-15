@@ -1,6 +1,6 @@
 import { Chip, Tooltip } from "@mui/material";
 import CircleIcon from "@mui/icons-material/Circle";
-import type { Chat } from "../../ChatClient.types.ts";
+import type { Chat } from "../../../../ChatClient.types.ts";
 
 interface ChatButtonProps {
   chat: Chat;
